@@ -6,7 +6,8 @@ with an agent can see what it does without reading its config or its logs.
 Each agent's page shows four sections:
 
 - **What it can do** (and can't) — plain-English sentences generated from the
-  agent's actual configured tools, never raw tool or server names.
+  agent's actual configured tools; a tool with no sentence is counted as "N
+  other tools" (owners also see its name).
 - **Routines** — its scheduled tasks, in plain English, with last/next run.
 - **Recent activity** — counts only (conversations, messages, routine runs)
   for the last 7 days. No message text, ever.

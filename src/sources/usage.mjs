@@ -85,7 +85,18 @@ export function createUsageSource({ sessionsDir }) {
     const root = realDirInside(sessionDir, path.join('.claude-shared', 'projects'));
     const files = root ? listJsonl(root) : [];
     const live = new Set(files);
-    for (const key of fileCache.keys()) if (key.startsWith(sessionDir + path.sep) && !live.has(key)) fileCache.delete(key);
+    // Cache keys are realpath'd (they come from listJsonl(root), and root is
+    // already realpath'd by realDirInside). sessionDir itself is not — if
+    // the sessions dir is reached through a symlink, comparing against the
+    // non-realpath'd sessionDir never matches, so a deleted file's entry is
+    // never evicted. Realpath the comparison base too.
+    let realSessionDir;
+    try {
+      realSessionDir = fs.realpathSync(sessionDir);
+    } catch {
+      realSessionDir = sessionDir;
+    }
+    for (const key of fileCache.keys()) if (key.startsWith(realSessionDir + path.sep) && !live.has(key)) fileCache.delete(key);
     const fileEntries = [];
     for (const file of files) {
       const st = fs.statSync(file);
@@ -137,5 +148,6 @@ export function createUsageSource({ sessionsDir }) {
       };
     },
     _parsedCount: () => parsed,
+    _cacheKeys: () => [...fileCache.keys()],
   };
 }

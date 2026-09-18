@@ -375,13 +375,13 @@ It exits non-zero on any error.
 
 ## 11. First deployment (lives in the install's own repo, not here)
 
-For the first household install, the install repo (`ausie`) adds:
+For the first household install, the install's own repo adds:
 
-- `agent/template/{ausie,home}/agent-card.json`;
-- a plugin that parses `AUSIE_TOOL_ALLOW` from each server config
-  (`resolveTools`), supplies sentences for its own tools, and reads cost and
-  tool usage from its existing Supabase ledger through a **new read-only
-  Postgres role** limited to SELECT on the ledger tables;
+- `agent/template/{personal,home}/agent-card.json`;
+- a plugin that parses an allow-list environment variable from each server
+  config (`resolveTools`), supplies sentences for its own tools, and reads cost and
+  tool usage from its existing ledger through a **new read-only
+  database role** limited to SELECT on the ledger tables;
 - `config.json` on the VPS (not committed), a systemd unit, and an install
   script in the style of its existing `host/deploy` units;
 - a tunnel ingress rule `agents.<domain> → 127.0.0.1:3200` and a Cloudflare

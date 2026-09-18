@@ -1,7 +1,7 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { openReadOnly } from '../db.mjs';
 import { dayKey } from '../present/schedule.mjs';
+import { realInside } from '../fs-safe.mjs';
 
 const DAY_MS = 86_400_000;
 const CHAT_KINDS = new Set(['chat', 'chat-sdk']);
@@ -11,8 +11,14 @@ export function lastNDays(n, timezone, now) {
   return Array.from({ length: n }, (_, i) => new Date(base - (n - 1 - i) * DAY_MS).toISOString().slice(0, 10));
 }
 
-function readRows(file, sql, params) {
-  if (!fs.existsSync(file)) return [];
+// sessionDir is agent-writable (NanoClaw mounts it read-write into the
+// container), so the agent can replace inbound.db/outbound.db with a
+// symlink pointing anywhere on the host. Route the open through
+// realpath-containment; a null result (missing, or escapes sessionDir)
+// means "no rows" rather than opening whatever the symlink points at.
+function readRows(sessionDir, rel, sql, params) {
+  const file = realInside(sessionDir, rel);
+  if (!file) return [];
   const db = openReadOnly(file);
   try {
     return db.prepare(sql).all(...params);
@@ -36,11 +42,12 @@ export function createActivitySource({ sessionsDir, log = () => {} }) {
         try {
           const active = new Set();
           const inbound = readRows(
-            path.join(dir, 'inbound.db'),
+            dir,
+            'inbound.db',
             'SELECT kind, timestamp, status, process_after FROM messages_in WHERE timestamp >= ? OR process_after >= ?',
             [since, since],
           );
-          const outbound = readRows(path.join(dir, 'outbound.db'), 'SELECT kind, timestamp FROM messages_out WHERE timestamp >= ?', [since]);
+          const outbound = readRows(dir, 'outbound.db', 'SELECT kind, timestamp FROM messages_out WHERE timestamp >= ?', [since]);
 
           for (const r of inbound) {
             if (CHAT_KINDS.has(r.kind)) {

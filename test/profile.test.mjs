@@ -14,12 +14,12 @@ import { buildProfile, buildSummary, computeInstallServices } from '../src/profi
 const install = createInstall();
 install
   .addGroup({ id: 'ag-home', name: 'Home', folder: 'home', timezone: 'Asia/Jerusalem', mcpServers: { 'google-mcp': { command: 'node', env: { ALLOW: 'gcal_list,gmail_search', SECRET: 'SECRET_VALUE_123' } }, 'odd-server': {} } })
-  .addGroup({ id: 'ag-ausie', name: 'Ausie', folder: 'ausie', mcpServers: { budget: { env: { ALLOW: 'ynab_get' } } } })
+  .addGroup({ id: 'ag-personal', name: 'Personal', folder: 'personal', mcpServers: { budget: { env: { ALLOW: 'ynab_get' } } } })
   .addGroup({ id: 'ag-attacker', name: 'Attacker', folder: 'attacker' });
 install.addSession({ id: 's1', agentGroupId: 'ag-home', lastActive: '2026-09-15T09:00:00.000Z' }).inbound({ timestamp: '2026-09-15T09:00:00.000Z' }).close();
 install.writeGroupFile('home', 'agent-card.json', JSON.stringify({ name: 'Home', description: 'Runs the house', 'x-profile': { emoji: '🏠', neverDoes: ['Take sides'] }, skills: [{ name: 'Calendar', examples: ['What is on tomorrow?'] }] }));
 install.writeGroupFile('home', 'instructions.prepend.md', '# Home persona');
-install.writeGroupFile('ausie', 'agent-card.json', '{broken');
+install.writeGroupFile('personal', 'agent-card.json', '{broken');
 install.close();
 
 const now = new Date('2026-09-15T12:00:00Z');
@@ -82,8 +82,8 @@ test('owner profile adds cost, instructions and unknown names', async () => {
 });
 
 test('a broken card still renders a profile with a fallback name', async () => {
-  const p = await buildProfile({ id: 'ag-ausie', name: 'Ausie', folder: 'ausie' }, { ...base, viewer: { isOwner: true }, installServices: new Set() });
-  assert.equal(p.identity.name, 'Ausie');
+  const p = await buildProfile({ id: 'ag-personal', name: 'Personal', folder: 'personal' }, { ...base, viewer: { isOwner: true }, installServices: new Set() });
+  assert.equal(p.identity.name, 'Personal');
   assert.equal(p.cardProblem, true);
   assert.equal(p.capabilities.ok, true);
 });
@@ -141,7 +141,7 @@ test('plugin cost with unpricedCalls 0 or absent is not unpriced', async () => {
 });
 
 test('install services exclude hiddenGroups folders', () => {
-  const hiddenConfig = { ...config, hiddenGroups: ['ausie'] };
+  const hiddenConfig = { ...config, hiddenGroups: ['personal'] };
   assert.deepEqual([...computeInstallServices({ ...base, config: hiddenConfig })].sort(), ['Calendar', 'Email']);
 });
 

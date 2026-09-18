@@ -59,8 +59,8 @@ test('no token is 403 with security headers', async () => {
 test('spouse sees only Home', async () => {
   const html = await (await get('/', 'spouse@x.com')).text();
   assert.ok(html.includes('/agents/home'));
-  assert.ok(!html.includes('/agents/ausie'));
-  assert.equal((await get('/agents/ausie', 'spouse@x.com')).status, 404);
+  assert.ok(!html.includes('/agents/personal'));
+  assert.equal((await get('/agents/personal', 'spouse@x.com')).status, 404);
   assert.equal((await get('/agents/eval', 'spouse@x.com')).status, 404);
 });
 
@@ -78,7 +78,7 @@ test('icon is served for visible agents', async () => {
   assert.equal(res.status, 200);
   assert.equal(res.headers.get('content-type'), 'image/png');
   assert.equal(await res.text(), 'PNGDATA');
-  assert.equal((await get('/agents/ausie/icon', 'owner@x.com')).status, 404);
+  assert.equal((await get('/agents/personal/icon', 'owner@x.com')).status, 404);
 });
 
 test('an icon.png that is really a symlink to a non-image file 404s (real-path extension guard)', async () => {

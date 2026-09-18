@@ -1,4 +1,7 @@
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createInstall } from './helpers/install.mjs';
@@ -40,6 +43,29 @@ test('dailyCounts buckets chat, replies and routine runs; skips stale sessions',
     { date: '2026-09-14', conversations: 1, messagesIn: 1, messagesOut: 0, routineRuns: 1, routineFailures: 1 },
     { date: '2026-09-15', conversations: 1, messagesIn: 2, messagesOut: 1, routineRuns: 1, routineFailures: 0 },
   ]);
+});
+
+test('a symlinked inbound.db pointing outside the session dir is ignored', () => {
+  const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ncp-outside-'));
+  try {
+    const outsideDb = path.join(outsideDir, 'fixture.db');
+    const db = new DatabaseSync(outsideDb);
+    db.exec('CREATE TABLE messages_in (id TEXT PRIMARY KEY, kind TEXT NOT NULL, timestamp TEXT NOT NULL, status TEXT, process_after TEXT)');
+    db.prepare('INSERT INTO messages_in (id, kind, timestamp, status, process_after) VALUES (?, ?, ?, ?, ?)')
+      .run('evil-1', 'chat', '2026-09-15T09:30:00.000Z', 'completed', null);
+    db.close();
+
+    const symDir = path.join(install.sessionsDir, 'ag-1', 's-sym');
+    fs.mkdirSync(symDir, { recursive: true });
+    fs.symlinkSync(outsideDb, path.join(symDir, 'inbound.db'));
+
+    const src = createActivitySource({ sessionsDir: install.sessionsDir });
+    const sessions = [{ id: 's-sym', lastActive: '2026-09-15T10:00:00.000Z' }];
+    const days = src.dailyCounts('ag-1', sessions, { days: 1, timezone: 'UTC', now });
+    assert.deepEqual(days, [{ date: '2026-09-15', conversations: 0, messagesIn: 0, messagesOut: 0, routineRuns: 0, routineFailures: 0 }]);
+  } finally {
+    fs.rmSync(outsideDir, { recursive: true, force: true });
+  }
 });
 
 test('skips sessions with corrupt databases and logs them', () => {

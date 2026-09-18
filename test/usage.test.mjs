@@ -86,6 +86,30 @@ test('a projects dir symlinked outside the session dir yields zero cost', () => 
   }
 });
 
+test('cache evicts the entry for a deleted transcript when the sessions dir is reached through a symlink', () => {
+  const realDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ncp-real-'));
+  const linkParent = fs.mkdtempSync(path.join(os.tmpdir(), 'ncp-link-'));
+  const sessionsLink = path.join(linkParent, 'v2-sessions');
+  fs.symlinkSync(realDir, sessionsLink);
+  try {
+    const file = path.join(realDir, 'ag-sym2', '.claude-shared', 'projects', '-workspace-agent', 'a.jsonl');
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(assistant('msym', 'claude-haiku-4-5', '2026-09-05T00:00:00Z', { input_tokens: 1000000, output_tokens: 0 })) + '\n');
+    const realFile = fs.realpathSync(file);
+
+    const src = createUsageSource({ sessionsDir: sessionsLink });
+    src.monthlyCost('ag-sym2', { months: 1, timezone: 'UTC', now, prices, currency });
+    assert.ok(src._cacheKeys().includes(realFile), 'the fresh transcript is cached');
+
+    fs.rmSync(file);
+    src.monthlyCost('ag-sym2', { months: 1, timezone: 'UTC', now, prices, currency });
+    assert.ok(!src._cacheKeys().includes(realFile), 'the deleted transcript is evicted from the cache');
+  } finally {
+    fs.rmSync(linkParent, { recursive: true, force: true });
+    fs.rmSync(realDir, { recursive: true, force: true });
+  }
+});
+
 test('the same message id in two files counts once, the later-mtime file winning', () => {
   const f1 = install.writeTranscript('ag-dup', '-workspace-agent/a.jsonl', [
     assistant('dup1', 'claude-haiku-4-5', '2026-09-05T10:00:00Z', { input_tokens: 1000000, output_tokens: 0 }),
