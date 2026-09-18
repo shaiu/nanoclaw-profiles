@@ -10,8 +10,9 @@ Each agent's page shows four sections:
 - **Routines** — its scheduled tasks, in plain English, with last/next run.
 - **Recent activity** — counts only (conversations, messages, routine runs)
   for the last 7 days. No message text, ever.
-- **What it knows** — the agent's Core Memory and its other memory files,
-  titles and descriptions only, never full file bodies.
+- **What it knows** — the agent's Core Memory, shown in full as rendered
+  Markdown, plus its other memory files, each listed by title, type and
+  description only — never the body of those other files.
 
 Owners (and, if enabled, other members) additionally see an estimated
 **Cost** section. Owners alone see a **For the owner** section with the
@@ -57,6 +58,15 @@ Fill in `config.json`:
   computed in USD and converted at `currency.rate`.
 - `plugins` — absolute paths to plugin modules (see below). Leave empty for
   a plain install.
+- `port` — the port the app listens on (default `3200`).
+- `timezone` — the install's default IANA timezone (default `UTC`), used
+  for routines, activity and cost. An individual agent's own
+  `container_configs.timezone`, when set and valid, wins over this default
+  for that agent's page.
+- `hiddenGroups` — an array of group folder names to hide from everyone
+  except owners. Owners always see every group regardless of this list.
+- `showCostToMembers` — whether non-owner members also see the Cost
+  section (default `false`; owners see it either way).
 
 `config.json` holds no secrets itself, but keep it out of version control —
 it lists real people's emails and NanoClaw user ids.
@@ -112,17 +122,23 @@ created from that template has a profile with no NanoClaw change at all.
 ## Plugins
 
 A plugin is an ES module path listed in `config.plugins`. Its default export
-is an object with a `name` and any of these optional hooks — all may be
-async, and a hook that throws or takes longer than 5 seconds is treated as
-if it returned nothing:
+is an object with a `name` and any of these optional hooks:
+
+- `resolveTools` is called **synchronously** and must return a plain
+  `string[]` (or `undefined` to fall back to describing the server as a
+  whole) — an async function or a Promise return value is not awaited, so
+  it is treated as `undefined` and silently ignored.
+- `cost` and `activity` may be async, and each gets a 5-second timeout; a
+  hook that throws or is still pending after 5 seconds is treated as if it
+  returned nothing.
 
 ```js
 export default {
   name: 'example',
   capabilities: [{ match: 'gcal_*', service: 'Calendar', sentence: '…' }],
   resolveTools(serverName, serverConfig) {
-    // Return string[] of tool names for this MCP server, or undefined
-    // to fall back to describing the server as a whole.
+    // Synchronous. Return string[] of tool names for this MCP server, or
+    // undefined to fall back to describing the server as a whole.
   },
   async cost(agent, { months, timezone }) {
     // Replace the estimated cost with real figures from your own ledger.
