@@ -1,0 +1,18 @@
+[Unit]
+Description=nanoclaw-profiles (friendly agent profile pages)
+After=network-online.target
+
+[Service]
+Type=simple
+User=nanoclaw
+WorkingDirectory=/opt/nanoclaw-profiles
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning /opt/nanoclaw-profiles/src/cli.mjs serve --config /etc/nanoclaw-profiles/config.json
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
