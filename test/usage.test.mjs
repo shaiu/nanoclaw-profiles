@@ -1,5 +1,8 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { createInstall } from './helpers/install.mjs';
 import { createUsageSource, priceFor, costUsd, lastNMonths } from '../src/sources/usage.mjs';
 
@@ -61,4 +64,40 @@ test('unchanged files are served from cache', () => {
 test('agent with no transcripts costs zero', () => {
   const src = createUsageSource({ sessionsDir: install.sessionsDir });
   assert.deepEqual(src.monthlyCost('ag-none', { months: 1, timezone: 'UTC', now, prices, currency }).months, [{ month: '2026-09', amount: 0 }]);
+});
+
+test('a projects dir symlinked outside the session dir yields zero cost', () => {
+  const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ncp-outside-'));
+  try {
+    const outsideProject = path.join(outsideDir, 'evil-project');
+    fs.mkdirSync(outsideProject, { recursive: true });
+    fs.writeFileSync(
+      path.join(outsideProject, 'a.jsonl'),
+      JSON.stringify(assistant('mx', 'claude-opus-5', '2026-09-05T00:00:00Z', { input_tokens: 1000000, output_tokens: 0 })) + '\n',
+    );
+    const claudeSharedDir = path.join(install.sessionsDir, 'ag-sym', '.claude-shared');
+    fs.mkdirSync(claudeSharedDir, { recursive: true });
+    fs.symlinkSync(outsideDir, path.join(claudeSharedDir, 'projects'));
+    const src = createUsageSource({ sessionsDir: install.sessionsDir });
+    const r = src.monthlyCost('ag-sym', { months: 1, timezone: 'UTC', now, prices, currency });
+    assert.deepEqual(r.months, [{ month: '2026-09', amount: 0 }]);
+  } finally {
+    fs.rmSync(outsideDir, { recursive: true, force: true });
+  }
+});
+
+test('the same message id in two files counts once, the later-mtime file winning', () => {
+  const f1 = install.writeTranscript('ag-dup', '-workspace-agent/a.jsonl', [
+    assistant('dup1', 'claude-haiku-4-5', '2026-09-05T10:00:00Z', { input_tokens: 1000000, output_tokens: 0 }),
+  ]);
+  const f2 = install.writeTranscript('ag-dup', '-workspace-agent/b.jsonl', [
+    assistant('dup1', 'claude-haiku-4-5', '2026-09-05T10:00:00Z', { input_tokens: 2000000, output_tokens: 0 }),
+  ]);
+  fs.utimesSync(f1, new Date('2026-01-01T00:00:00Z'), new Date('2026-01-01T00:00:00Z'));
+  fs.utimesSync(f2, new Date('2026-01-02T00:00:00Z'), new Date('2026-01-02T00:00:00Z'));
+  const src = createUsageSource({ sessionsDir: install.sessionsDir });
+  const r = src.monthlyCost('ag-dup', { months: 1, timezone: 'UTC', now, prices, currency });
+  // If deduped, only f2 (newer mtime) counts: 2M in * $1 = $2 -> * rate 4 = $8.
+  // If double-counted it would be (1M + 2M) * $1 = $3 -> $12.
+  assert.deepEqual(r.months, [{ month: '2026-09', amount: 8 }]);
 });

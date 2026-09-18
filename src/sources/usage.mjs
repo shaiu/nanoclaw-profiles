@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { dayKey } from '../present/schedule.mjs';
+import { realDirInside } from '../fs-safe.mjs';
 
 export function priceFor(model, prices) {
   if (prices[model]) return prices[model];
@@ -39,7 +40,9 @@ function parseTranscript(file) {
     const u = o?.message?.usage;
     if (o.type !== 'assistant' || !u) continue;
     const cc = u.cache_creation;
+    const id = o.message.id ?? o.requestId ?? null;
     const record = {
+      id,
       t: Date.parse(o.timestamp),
       model: o.message.model ?? 'unknown',
       input: u.input_tokens ?? 0,
@@ -48,7 +51,6 @@ function parseTranscript(file) {
       cacheWrite5m: cc ? cc.ephemeral_5m_input_tokens ?? 0 : u.cache_creation_input_tokens ?? 0,
       cacheWrite1h: cc ? cc.ephemeral_1h_input_tokens ?? 0 : 0,
     };
-    const id = o.message.id ?? o.requestId;
     if (id) byId.set(id, record);
     else anonymous.push(record);
   }
@@ -56,8 +58,17 @@ function parseTranscript(file) {
 }
 
 function listJsonl(root, depth = 0, out = []) {
-  if (depth > 6 || !fs.existsSync(root)) return out;
-  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+  if (depth > 6) return out;
+  let entries;
+  try {
+    entries = fs.readdirSync(root, { withFileTypes: true });
+  } catch {
+    return out;
+  }
+  for (const entry of entries) {
+    // The session dir, like the group folder, may be agent-writable — skip
+    // symlinks rather than follow them out of the real root.
+    if (entry.isSymbolicLink()) continue;
     const abs = path.join(root, entry.name);
     if (entry.isDirectory()) listJsonl(abs, depth + 1, out);
     else if (entry.isFile() && entry.name.endsWith('.jsonl')) out.push(abs);
@@ -70,11 +81,12 @@ export function createUsageSource({ sessionsDir }) {
   let parsed = 0;
 
   function records(agentGroupId) {
-    const root = path.join(sessionsDir, agentGroupId, '.claude-shared', 'projects');
-    const files = listJsonl(root);
+    const sessionDir = path.join(sessionsDir, agentGroupId);
+    const root = realDirInside(sessionDir, path.join('.claude-shared', 'projects'));
+    const files = root ? listJsonl(root) : [];
     const live = new Set(files);
-    for (const key of fileCache.keys()) if (key.startsWith(root + path.sep) && !live.has(key)) fileCache.delete(key);
-    const out = [];
+    for (const key of fileCache.keys()) if (key.startsWith(sessionDir + path.sep) && !live.has(key)) fileCache.delete(key);
+    const fileEntries = [];
     for (const file of files) {
       const st = fs.statSync(file);
       let entry = fileCache.get(file);
@@ -83,9 +95,22 @@ export function createUsageSource({ sessionsDir }) {
         parsed += 1;
         fileCache.set(file, entry);
       }
-      out.push(...entry.records);
+      fileEntries.push(entry);
     }
-    return out;
+    // Dedupe by message id across every file of the agent: one API response
+    // can be re-synced into more than one transcript file. The record from
+    // the file with the latest mtime wins (then line order within a file,
+    // handled by parseTranscript itself).
+    fileEntries.sort((a, b) => a.mtimeMs - b.mtimeMs);
+    const byId = new Map();
+    const anonymous = [];
+    for (const entry of fileEntries) {
+      for (const r of entry.records) {
+        if (r.id) byId.set(r.id, r);
+        else anonymous.push(r);
+      }
+    }
+    return [...byId.values(), ...anonymous];
   }
 
   return {
