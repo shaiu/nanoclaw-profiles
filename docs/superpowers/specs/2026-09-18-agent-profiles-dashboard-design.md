@@ -135,13 +135,17 @@ degrades to NanoClaw data when a field or the whole file is missing.
 `iconUrl` is resolved relative to the group folder and served by the app
 through an allow-listed image route (png/jpg/webp/svg, same folder only).
 
-**Where the card is found.** The service looks first at
-`groups/<folder>/agent-card.json`, which is how a bare group gets a card. If
-that is missing, it takes the first match, in alphabetical order, of
-`groups/<folder>/plugins/*/agent-card.json`. NanoClaw's template stamping
-copies the whole template directory to `groups/<folder>/plugins/<template>/`
-(`src/templates/create-agent.ts`), so a template that ships a card at its root
-provides one with **no NanoClaw change**.
+**Where the card is found.** The service looks first at the first match, in
+alphabetical order, of `groups/<folder>/plugins/*/agent-card.json`.
+NanoClaw's template stamping copies the whole template directory to
+`groups/<folder>/plugins/<template>/` (`src/templates/create-agent.ts`), so a
+template that ships a card at its root provides one with **no NanoClaw
+change**. Only when no template card exists does the service fall back to a
+hand-authored `groups/<folder>/agent-card.json` placed directly in the group
+folder. The template card takes precedence deliberately: it is the
+install-managed, read-only one, while the group folder itself is mounted
+read-write into the agent's own container, so a bare `agent-card.json`
+placed there must not be able to silently override the template's.
 
 ### 4.2 Capabilities (can / can't do)
 
@@ -240,6 +244,16 @@ From `groups/<folder>/memory/`:
 - Visible to owners always; to members only if `showCostToMembers: true`,
   which defaults to false.
 
+### 4.7 Owner-only: Full instructions
+
+A "For the owner" panel, visible to owners only, shows the raw contents of
+`groups/<folder>/instructions.prepend.md` when that file exists (`null`
+otherwise). This is the one place the page shows unredacted, free-form text
+authored for the agent, rather than a structured summary — deliberately
+scoped to owners, since the file may contain persona or policy detail not
+meant for other members. The read goes through the same realpath
+containment as every other read under the group folder (§8).
+
 ## 5. Plugin interface
 
 A plugin is an ES module path listed in `config.plugins`. All hooks are
@@ -269,6 +283,7 @@ by the install owner.
   "port": 3200,
   "nanoclawDir": "/home/user/nanoclaw",
   "ncl": "/home/user/nanoclaw/bin/ncl",
+  "nclTimeoutMs": 15000,
   "timezone": "Asia/Jerusalem",
   "access": { "teamDomain": "example.cloudflareaccess.com", "aud": "<app AUD tag>" },
   "users": { "person@example.com": "whatsapp:972500000000" },
@@ -280,9 +295,14 @@ by the install owner.
 }
 ```
 
-`timezone` defaults to NanoClaw's installation timezone when omitted. The
-price values above are placeholders. `config.example.json` ships with
-documented fields and no personal data. `config.json` is gitignored.
+`timezone` defaults to `"UTC"` when omitted; an individual agent's own
+`container_configs.timezone`, when set and a valid IANA zone, wins over this
+default for that agent's page (routines, activity and cost). `ncl` defaults
+to `<nanoclawDir>/bin/ncl`. `nclTimeoutMs` bounds how long the Routines
+section waits on `ncl tasks list` before giving up for that request
+(integer, minimum 1000ms, default 15000). The price values above are
+placeholders. `config.example.json` ships with documented fields and no
+personal data. `config.json` is gitignored.
 
 ## 7. Error handling
 
@@ -305,6 +325,16 @@ documented fields and no personal data. `config.json` is gitignored.
   gets `403`; there is no trust by source IP.
 - Read-only everywhere. No secrets, env values, message contents, or tool
   arguments reach the page model.
+- **Agent-writable folders are hostile input.** NanoClaw mounts a group's
+  folder (and its session/transcript directory) read-write into that
+  agent's own container, so the agent can plant a symlink there pointing
+  anywhere on the host, or into another group's folder. Every read under
+  such a folder — task log lines, the memory dir and every file inside it,
+  the agent card (direct and template), `instructions.prepend.md`, and the
+  transcript `projects` root and its files — is realpath-contained
+  (`src/fs-safe.mjs`): the target's resolved, symlink-free path must fall
+  strictly inside the resolved, symlink-free base directory, or the read is
+  refused and treated as missing.
 - Output escaping everywhere, and Markdown is rendered without raw HTML.
   Response headers include a CSP with no external scripts,
   `X-Content-Type-Options`, and `Referrer-Policy: no-referrer`.

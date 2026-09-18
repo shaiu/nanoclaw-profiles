@@ -1,6 +1,7 @@
 {
   "port": 3200,
   "nanoclawDir": "/home/nanoclaw/nanoclaw",
+  "nclTimeoutMs": 15000,
   "timezone": "UTC",
   "access": {
     "teamDomain": "your-team.cloudflareaccess.com",

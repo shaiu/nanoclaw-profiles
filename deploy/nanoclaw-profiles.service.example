@@ -1,12 +1,22 @@
 [Unit]
 Description=nanoclaw-profiles (friendly agent profile pages)
 After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
 User=nanoclaw
 WorkingDirectory=/opt/nanoclaw-profiles
+# ExecStart's node binary must match the one routines actually run under
+# (`ncl` invokes `pnpm exec tsx` on NanoClaw's own PATH). Check with
+# `which node` in the account/shell that runs NanoClaw — an nvm-managed
+# install commonly lives outside /usr/bin, e.g.
+# ~/.nvm/versions/node/v22.13.0/bin/node.
 ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning /opt/nanoclaw-profiles/src/cli.mjs serve --config /etc/nanoclaw-profiles/config.json
+# Uncomment and adjust if `pnpm` isn't on the default PATH for this user —
+# routines call `ncl`, which shells out to `pnpm exec tsx`, so pnpm must be
+# reachable from wherever NanoClaw's service itself runs.
+# Environment=PATH=/usr/local/bin:/usr/bin:/bin
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true

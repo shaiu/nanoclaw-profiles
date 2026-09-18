@@ -20,9 +20,14 @@ agent's full instructions.
 
 ## Requirements
 
-- A NanoClaw v2 install (the app reads its SQLite database, group folders and
-  Claude transcript files directly; it never talks to NanoClaw over a
-  network protocol).
+- A NanoClaw v2 install. Most data comes from reading its SQLite database,
+  group folders and Claude transcript files directly. The **Routines**
+  section is the exception: it runs `ncl tasks list --group <id> --json`
+  (`bin/ncl` inside the NanoClaw install, which shells out to
+  `pnpm exec tsx …` over NanoClaw's local socket), so the NanoClaw service
+  itself must be running, and `pnpm` must be on the **PATH of the account
+  that runs `nanoclaw-profiles`** (see the systemd unit's commented
+  `Environment=PATH=…` line) — not just on the NanoClaw service's PATH.
 - Node.js ≥ 22.13.
 - A Cloudflare Access application placed in front of the service. Access
   handles authentication; `nanoclaw-profiles` never accepts unauthenticated
@@ -67,6 +72,12 @@ Fill in `config.json`:
   except owners. Owners always see every group regardless of this list.
 - `showCostToMembers` — whether non-owner members also see the Cost
   section (default `false`; owners see it either way).
+- `ncl` — absolute path to NanoClaw's `ncl` binary, used for the Routines
+  section. Defaults to `<nanoclawDir>/bin/ncl`; set this only if your
+  install keeps it somewhere else.
+- `nclTimeoutMs` — how long to wait for `ncl tasks list` before giving up
+  on the Routines section for that request (default `15000`, minimum
+  `1000`). Raise it if `ncl` is consistently slow on your install.
 
 `config.json` holds no secrets itself, but keep it out of version control —
 it lists real people's emails and NanoClaw user ids.
@@ -112,12 +123,15 @@ fall back to plain NanoClaw data. `iconUrl` is a path relative to the card's
 own folder, and must point at a `.png`, `.jpg`, `.jpeg`, `.webp` or `.svg`
 file in that same folder.
 
-**Where the file goes.** The app looks first at
-`groups/<folder>/agent-card.json`. If that's missing, it takes the first
-match, alphabetically, of `groups/<folder>/plugins/*/agent-card.json`. That
-second path is how a NanoClaw template gets a card for free: if the template
-ships an `agent-card.json` at the root of its own directory, every group
-created from that template has a profile with no NanoClaw change at all.
+**Where the file goes.** The app looks first at the first match,
+alphabetically, of `groups/<folder>/plugins/*/agent-card.json` — that's how
+a NanoClaw template gets a card for free: if the template ships an
+`agent-card.json` at the root of its own directory, every group created
+from that template has a profile with no NanoClaw change at all. Only when
+no template card exists does it fall back to a hand-authored
+`groups/<folder>/agent-card.json` placed directly in the group folder. The
+template card wins on purpose: it's the read-only, install-managed one, so
+a group's own writable folder can't silently override it.
 
 ## Plugins
 
@@ -219,7 +233,10 @@ Beyond that:
 - Nothing sensitive ever reaches the page: no secrets or environment values
   from MCP server configs, no message text or sender content, no tool
   arguments, no task prompts. Activity and cost are shown as counts and
-  totals only.
+  totals only. A configured tool or server with no catalogue sentence is
+  counted as "N other tools" for everyone, but owners additionally see the
+  raw tool/server names themselves (never their arguments or output) — the
+  `check` command flags these so they get a real sentence instead.
 - Output is escaped everywhere, and Markdown (in "What it knows") is
   rendered without raw HTML. Responses carry a strict Content-Security-Policy
   with no external scripts, `X-Content-Type-Options: nosniff`, and
@@ -230,8 +247,12 @@ Beyond that:
 **Recommended Access policy:** configure the Access application with an
 explicit **Include: Emails** rule listing exactly the addresses that also
 appear in `config.users` — not a broader rule like "everyone in this
-domain". That keeps the two locks aligned and makes `config.users` the only
-place you need to update when someone joins or leaves.
+domain". That keeps the two locks aligned, but it also means **both** lists
+need updating when someone joins or leaves: add (or remove) their email in
+the Access policy's Include rule *and* as a key in `config.users`. Either
+one alone leaves them locked out (Access admits them but `config.users`
+doesn't recognise them, or vice versa) rather than over-exposed, but both
+still need to be kept in sync by hand.
 
 ## Deployment
 
