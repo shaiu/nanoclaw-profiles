@@ -69,8 +69,12 @@ Fill in `config.json`:
   for routines, activity and cost. An individual agent's own
   `container_configs.timezone`, when set and valid, wins over this default
   for that agent's page.
-- `hiddenGroups` — an array of group folder names to hide from everyone
-  except owners. Owners always see every group regardless of this list.
+- `hiddenGroups` — an array of group folder names to hide from the "Your
+  agents" list for everyone, owners included (e.g. an eval/test agent
+  stamped from the same template, so it would otherwise show a duplicate
+  card). Owners can still open a hidden group's profile directly at its
+  `/agents/<folder>` URL; non-owners get a 404 there, same as any other
+  group they can't see.
 - `showCostToMembers` — whether non-owner members also see the Cost
   section (default `false`; owners see it either way).
 - `ncl` — absolute path to NanoClaw's `ncl` binary, used for the Routines

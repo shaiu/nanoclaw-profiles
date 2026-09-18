@@ -95,8 +95,11 @@ minimum Node version is **22.13**. The first deployment runs Node 22.23.2.
    - **owner** (`user_roles.role='owner'`) sees all agent groups;
    - **admin** sees the groups it is scoped to (global admin sees all);
    - **member** sees groups with an `agent_group_members` row.
-   Groups listed in `config.hiddenGroups` are visible to owners only
-   (e.g. an eval/test agent).
+   Groups listed in `config.hiddenGroups` are excluded from this list for
+   everyone, owners included (e.g. an eval/test agent stamped from the
+   same template, which would otherwise show a duplicate card). Owners can
+   still open a hidden group's profile directly by its `/agents/<folder>`
+   URL; for non-owners that URL 404s like any other group they can't see.
 4. `/` renders the "My agents" grid. `/agents/<folder>` renders a profile.
    Requesting a group the person cannot see returns `404`, not `403`, so the
    response does not reveal that the group exists.
