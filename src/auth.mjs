@@ -10,6 +10,7 @@ export function createAccessVerifier({ teamDomain, aud, fetchImpl = globalThis.f
   const certsUrl = `${issuer}/cdn-cgi/access/certs`;
   let keys = new Map();
   let lastFetch = -Infinity;
+  let inflight = null;
 
   async function refresh() {
     lastFetch = now();
@@ -24,12 +25,22 @@ export function createAccessVerifier({ teamDomain, aud, fetchImpl = globalThis.f
   }
 
   async function keyFor(kid) {
-    if (!keys.has(kid) && now() - lastFetch >= refetchIntervalMs) await refresh();
+    if (!keys.has(kid) && (inflight || now() - lastFetch >= refetchIntervalMs)) {
+      if (!inflight) {
+        inflight = refresh().finally(() => { inflight = null; });
+      }
+      await inflight;
+    }
     return keys.get(kid);
   }
 
   return {
-    init: refresh,
+    init: async () => {
+      if (!inflight) {
+        inflight = refresh().finally(() => { inflight = null; });
+      }
+      await inflight;
+    },
     async verify(token) {
       if (typeof token !== 'string' || !token) throw new AuthError('missing token');
       const parts = token.split('.');

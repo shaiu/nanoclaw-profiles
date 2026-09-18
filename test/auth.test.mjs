@@ -62,3 +62,17 @@ test('JWKS fetch failure is not an AuthError', async () => {
   const v = createAccessVerifier({ teamDomain: TEAM, aud: AUD, fetchImpl: async () => ({ ok: false, status: 500 }), now: () => NOW_MS });
   await assert.rejects(v.verify(signJwt(claims(), key)), (err) => !(err instanceof AuthError) && /HTTP 500/.test(err.message));
 });
+
+test('concurrent verifies share an in-flight JWKS refresh', async () => {
+  const calls = [];
+  const delayedFetch = async (url) => {
+    calls.push(url);
+    await new Promise(resolve => setTimeout(resolve, 20));
+    return { ok: true, status: 200, json: async () => ({ keys: [key.jwk] }) };
+  };
+  const v = createAccessVerifier({ teamDomain: TEAM, aud: AUD, fetchImpl: delayedFetch, now: () => NOW_MS });
+  const token = signJwt(claims(), key);
+  const results = await Promise.all([v.verify(token), v.verify(token)]);
+  assert.deepEqual(results, [{ email: 'person@x.com' }, { email: 'person@x.com' }]);
+  assert.equal(calls.length, 1);
+});
