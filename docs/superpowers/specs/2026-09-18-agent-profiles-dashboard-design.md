@@ -80,11 +80,10 @@ Each unit has one job and is testable on its own.
 | `src/server.mjs` | `node:http` routing, per-request auth, 30 s in-memory cache | all |
 | `src/cli.mjs` | `nanoclaw-profiles serve` and `nanoclaw-profiles check` | all |
 
-No web framework and no front-end build. Pages are server-rendered with
-inline CSS that is mobile-first and supports light and dark themes. The only
-runtime dependency beyond Node built-ins is `better-sqlite3`, used **only if**
-`node:sqlite` is unavailable on the target Node version (checked at planning
-time).
+No web framework, no front-end build and **no runtime dependencies**. Pages
+are server-rendered with inline CSS that is mobile-first and supports light
+and dark themes. SQLite access uses the built-in `node:sqlite` module, so the
+minimum Node version is **22.13**. The first deployment runs Node 22.23.2.
 
 ### 3.2 Request flow
 
@@ -136,12 +135,13 @@ degrades to NanoClaw data when a field or the whole file is missing.
 `iconUrl` is resolved relative to the group folder and served by the app
 through an allow-listed image route (png/jpg/webp/svg, same folder only).
 
-**Getting the card into the group folder.** Templates that ship an
-`agent-card.json` should have it stamped into the group folder. Whether
-`ncl groups create --template` already copies unknown files is a planning-time
-check. If it does not, the fix is a small upstream NanoClaw change so that any
-template can ship a card; the dashboard reads only the group folder either
-way.
+**Where the card is found.** The service looks first at
+`groups/<folder>/agent-card.json`, which is how a bare group gets a card. If
+that is missing, it takes the first match, in alphabetical order, of
+`groups/<folder>/plugins/*/agent-card.json`. NanoClaw's template stamping
+copies the whole template directory to `groups/<folder>/plugins/<template>/`
+(`src/templates/create-agent.ts`), so a template that ships a card at its root
+provides one with **no NanoClaw change**.
 
 ### 4.2 Capabilities (can / can't do)
 
@@ -171,15 +171,23 @@ does not have.
 
 ### 4.3 Routines
 
-From `ncl tasks list` / `ncl tasks get` in JSON form, where JSON output is a
-planning-time check. If `ncl` lacks JSON output, add it upstream rather than
-reading per-session tables directly. Each routine renders:
+From `ncl tasks list --group <id> --json`. `--json` is a flag every `ncl`
+command accepts. It returns the frame `{id, ok, data, human}`, where each row
+of `data` has `series_id`, `status`, `schedule` (a cron expression or
+`once`), `runs`, `failed_runs`, `last_run`, `next_run` and `log` (the run-log
+path relative to the group folder). Tasks have no separate name field: the
+name is the slug of `series_id` (`<slug>-<4hex>`), shown in readable form
+("proactive-brief-dec7" becomes "Proactive brief"). The task prompt is
+**never** shown. Cron schedules are described in the agent's timezone
+(`container_configs.timezone`, falling back to `config.timezone`). Each
+routine renders:
 
 - schedule in English, in the install's timezone: "Every weekday at 07:30",
   or "Once, on 14 Jul at 18:00";
 - task name;
-- last run: "Last ran today at 07:30 ✓" or "Failed yesterday ✗" plus the most
-  recent work-log line;
+- last run: "Last ran today at 07:30", plus "N of M runs failed" when
+  `failed_runs > 0`, plus the last line of the run log (truncated to 140
+  characters);
 - next run;
 - a "Paused" badge when paused.
 
@@ -197,14 +205,23 @@ From `groups/<folder>/memory/`:
 
 - the **Core Memory** section of `index.md`, rendered as Markdown (sanitised,
   no raw HTML);
-- every other concept file listed by folder, as title plus one-line
-  description from its frontmatter. The file body is not shown.
+- every other concept file listed by folder, excluding `index.md`, `log.md`
+  and the `system/` folder. Each shows a title (the first `#` heading, or the
+  file name in readable form), its OKF frontmatter `type` as a badge, and the
+  frontmatter `description` if there is one. The file body is not shown.
 - the footer hint: *To correct something, tell the agent "forget that …"*.
 
 ### 4.6 Cost
 
-- **Core:** per-day token usage (input, output, cache read, cache write) summed
-  from the group's Claude transcript JSONLs, multiplied by a per-model price
+- **Core:** per-day token usage summed from the group's Claude transcript
+  JSONLs (`data/v2-sessions/<ag-id>/.claude-shared/projects/**/*.jsonl`).
+  Only `type:"assistant"` lines count, using `message.model` and
+  `message.usage`: `input_tokens`, `output_tokens`, `cache_read_input_tokens`,
+  and `cache_creation.ephemeral_5m_input_tokens` /
+  `ephemeral_1h_input_tokens`, falling back to `cache_creation_input_tokens`
+  as 5m. Lines are **deduplicated by `message.id`**, because one API response
+  can span several lines. Per-file aggregates are cached by (path, mtime,
+  size), so unchanged files are not re-read. The totals are multiplied by a per-model price
   table in config (`prices`, USD per million tokens), and converted to display
   currency at `currency.rate`. Shows "This month: ₪X" and a small bar for each
   of the last 6 months. Labelled "estimate".
@@ -339,13 +356,23 @@ notifications, proxies other than Cloudflare Access, and packaging as a
 NanoClaw `/add-profiles` skill. The skill is the intended distribution path
 once v1 is stable.
 
-## 13. Planning-time checks
+## 13. Planning-time checks (resolved 2026-09-18)
 
-1. Target Node version on the VPS: is `node:sqlite` available, or do we fall
-   back to `better-sqlite3`?
-2. Does `ncl tasks list/get` emit JSON? If not, add it upstream.
-3. Does `ncl groups create --template` copy `agent-card.json` into the group
-   folder? If not, add it upstream.
-4. The exact per-session DB paths and columns needed for message counts
-   (`docs/db-session.md`).
-5. Transcript JSONL usage-field shape for the cost estimate.
+1. The VPS runs Node v22.23.2 and `node:sqlite` loads, with an
+   ExperimentalWarning that the unit silences with
+   `--disable-warning=ExperimentalWarning`. **No `better-sqlite3`.**
+2. `ncl tasks list --json` works (global flag); the frame shape is in §4.3.
+   **No upstream change.**
+3. Template stamping copies the whole plugin dir to `groups/<f>/plugins/<t>/`.
+   **No upstream change;** the card lookup is in §4.1.
+4. Session DBs are at `data/v2-sessions/<ag-id>/<session-id>/{inbound,outbound}.db`.
+   - Chat messages are `messages_in.kind IN ('chat','chat-sdk')` and
+     `messages_out.kind IN ('chat','chat-sdk')`.
+   - Routine runs are `messages_in.kind='task'` with status
+     `completed`/`failed`, bucketed by `process_after`.
+   - Only sessions whose central `sessions.last_active` falls in the window
+     are opened.
+5. The transcript usage shape is recorded in §4.6.
+6. The first install's Cloudflare Tunnel is remotely managed (token only, no
+   local `config.yml`). The ingress rule is therefore added in the Zero Trust
+   dashboard, which belongs to the install plan, not this package.
