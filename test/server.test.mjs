@@ -1,6 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
 import { householdInstall } from './helpers/install.mjs';
 import { makeKeyPair, signJwt, fakeFetch } from './helpers/jwt.mjs';
 import { createAccessVerifier } from '../src/auth.mjs';
@@ -14,6 +15,10 @@ const key = makeKeyPair('k1');
 const install = householdInstall();
 install.writeGroupFile('home', 'agent-card.json', JSON.stringify({ name: 'Home', iconUrl: 'a.png', 'x-profile': { emoji: '🏠' } }));
 install.writeGroupFile('home', 'a.png', 'PNGDATA');
+install.addGroup({ id: 'ag-icontest', name: 'IconTest', folder: 'icontest' });
+install.writeGroupFile('icontest', 'agent-card.json', JSON.stringify({ name: 'IconTest', iconUrl: 'icon.png' }));
+install.writeGroupFile('icontest', 'note.txt', 'not an image');
+fs.symlinkSync(path.join(install.groupsDir, 'icontest', 'note.txt'), path.join(install.groupsDir, 'icontest', 'icon.png'));
 install.close();
 
 let server;
@@ -74,6 +79,11 @@ test('icon is served for visible agents', async () => {
   assert.equal(res.headers.get('content-type'), 'image/png');
   assert.equal(await res.text(), 'PNGDATA');
   assert.equal((await get('/agents/ausie/icon', 'owner@x.com')).status, 404);
+});
+
+test('an icon.png that is really a symlink to a non-image file 404s (real-path extension guard)', async () => {
+  const res = await get('/agents/icontest/icon', 'owner@x.com');
+  assert.equal(res.status, 404);
 });
 
 test('known email without groups gets the empty state', async () => {

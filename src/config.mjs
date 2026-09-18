@@ -58,6 +58,9 @@ export function validateConfig(raw, baseDir) {
     errors.push('hiddenGroups must be an array of group folders');
   }
 
+  const nclTimeoutMs = cfg.nclTimeoutMs ?? 15000;
+  if (!Number.isInteger(nclTimeoutMs) || nclTimeoutMs < 1000) errors.push('nclTimeoutMs must be an integer >= 1000');
+
   if (errors.length) throw new ConfigError(`Invalid config:\n- ${errors.join('\n- ')}`);
 
   const nanoclawDir = path.resolve(baseDir, cfg.nanoclawDir);
@@ -68,6 +71,7 @@ export function validateConfig(raw, baseDir) {
     sessionsDir: path.join(nanoclawDir, 'data', 'v2-sessions'),
     groupsDir: path.join(nanoclawDir, 'groups'),
     ncl: cfg.ncl ? path.resolve(baseDir, cfg.ncl) : path.join(nanoclawDir, 'bin', 'ncl'),
+    nclTimeoutMs,
     timezone,
     access: {
       teamDomain: access.teamDomain.replace(/^https?:\/\//, '').replace(/\/+$/, ''),

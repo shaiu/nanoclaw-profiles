@@ -17,7 +17,11 @@ async function serve(configPath) {
   const plugins = await loadPlugins(config.plugins);
   const catalogue = loadCatalogue(plugins);
   const sources = createSources(config);
-  sources.nanoclaw.listAgentGroups();
+  try {
+    sources.nanoclaw.listAgentGroups();
+  } catch (err) {
+    throw new Error(`Cannot open NanoClaw database at ${config.dbPath}: ${err.message}`);
+  }
   const verifier = createAccessVerifier(config.access);
   await verifier.init();
   const app = createApp({ config, sources, plugins, catalogue, verifier });

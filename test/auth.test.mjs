@@ -63,6 +63,17 @@ test('JWKS fetch failure is not an AuthError', async () => {
   await assert.rejects(v.verify(signJwt(claims(), key)), (err) => !(err instanceof AuthError) && /HTTP 500/.test(err.message));
 });
 
+test('JWKS fetch is bounded by a 5s abort signal', async () => {
+  let capturedInit;
+  const fetchImpl = async (url, init) => {
+    capturedInit = init;
+    return { ok: true, status: 200, json: async () => ({ keys: [key.jwk] }) };
+  };
+  const v = createAccessVerifier({ teamDomain: TEAM, aud: AUD, fetchImpl, now: () => NOW_MS });
+  await v.init();
+  assert.ok(capturedInit?.signal instanceof AbortSignal);
+});
+
 test('concurrent verifies share an in-flight JWKS refresh', async () => {
   const calls = [];
   const delayedFetch = async (url) => {

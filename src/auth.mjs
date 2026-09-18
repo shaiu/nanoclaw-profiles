@@ -14,7 +14,7 @@ export function createAccessVerifier({ teamDomain, aud, fetchImpl = globalThis.f
 
   async function refresh() {
     lastFetch = now();
-    const res = await fetchImpl(certsUrl);
+    const res = await fetchImpl(certsUrl, { signal: AbortSignal.timeout(5000) });
     if (!res.ok) throw new Error(`Access JWKS fetch failed: HTTP ${res.status}`);
     const body = await res.json();
     const next = new Map();

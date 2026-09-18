@@ -18,6 +18,7 @@ test('minimal config gets defaults and derived paths', () => {
   assert.equal(c.sessionsDir, '/srv/nanoclaw/data/v2-sessions');
   assert.equal(c.groupsDir, '/srv/nanoclaw/groups');
   assert.equal(c.ncl, '/srv/nanoclaw/bin/ncl');
+  assert.equal(c.nclTimeoutMs, 15000);
   assert.equal(c.timezone, 'UTC');
   assert.deepEqual(c.users, { 'person@example.com': 'whatsapp:1' });
   assert.deepEqual(c.currency, { code: 'USD', symbol: '$', rate: 1 });
@@ -49,6 +50,13 @@ test('all problems are reported together', () => {
 
 test('prices must have numeric input and output', () => {
   assert.throws(() => validateConfig({ ...minimal, prices: { m: { input: 1 } } }, '/'), /prices\.m\.output/);
+});
+
+test('nclTimeoutMs must be an integer >= 1000, defaulting to 15000', () => {
+  assert.equal(validateConfig(minimal, '/').nclTimeoutMs, 15000);
+  assert.equal(validateConfig({ ...minimal, nclTimeoutMs: 30000 }, '/').nclTimeoutMs, 30000);
+  assert.throws(() => validateConfig({ ...minimal, nclTimeoutMs: 999 }, '/'), /nclTimeoutMs/);
+  assert.throws(() => validateConfig({ ...minimal, nclTimeoutMs: 1.5 }, '/'), /nclTimeoutMs/);
 });
 
 test('loadConfig reads a file and reports unreadable files', () => {

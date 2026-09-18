@@ -10,7 +10,7 @@ export function createSources(config) {
     nanoclaw: createNanoclawSource(config.dbPath),
     card: (folder) => readAgentCard(config.groupsDir, folder),
     memory: (folder) => readMemory(config.groupsDir, folder),
-    tasks: createTaskSource({ ncl: config.ncl, groupsDir: config.groupsDir }),
+    tasks: createTaskSource({ ncl: config.ncl, groupsDir: config.groupsDir, timeoutMs: config.nclTimeoutMs }),
     activity: createActivitySource({ sessionsDir: config.sessionsDir }),
     usage: createUsageSource({ sessionsDir: config.sessionsDir }),
   };
