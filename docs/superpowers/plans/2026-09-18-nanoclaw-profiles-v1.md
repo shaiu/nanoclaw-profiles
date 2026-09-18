@@ -78,7 +78,7 @@ test/*.test.mjs
 - [ ] **Step 1: Create the worktree and scaffold**
 
 ```bash
-cd /Users/shaiungar/git/nanoclaw-profiles
+cd <repo>
 git worktree add .worktrees/v1 -b v1 design-spec
 cd .worktrees/v1
 ```
@@ -1131,7 +1131,7 @@ export function createInstall() {
 export function householdInstall() {
   const install = createInstall();
   install
-    .addGroup({ id: 'ag-personal', name: 'Ausie', folder: 'ausie' })
+    .addGroup({ id: 'ag-personal', name: 'Personal', folder: 'personal' })
     .addGroup({ id: 'ag-home', name: 'Home', folder: 'home' })
     .addGroup({ id: 'ag-eval', name: 'Eval', folder: 'eval' })
     .addUser('wa:owner')
@@ -1179,7 +1179,7 @@ test('owner sees everything, including hidden groups', () => {
   const v = resolveViewer('OWNER@x.com', ctx);
   assert.equal(v.isOwner, true);
   assert.equal(v.email, 'owner@x.com');
-  assert.deepEqual(v.groups.map((g) => g.folder).sort(), ['ausie', 'eval', 'home']);
+  assert.deepEqual(v.groups.map((g) => g.folder).sort(), ['eval', 'home', 'personal']);
 });
 
 test('member sees only their groups', () => {
@@ -1187,11 +1187,11 @@ test('member sees only their groups', () => {
 });
 
 test('global admin sees everything except hidden groups', () => {
-  assert.deepEqual(folders('gadmin@x.com').sort(), ['ausie', 'home']);
+  assert.deepEqual(folders('gadmin@x.com').sort(), ['home', 'personal']);
 });
 
 test('scoped admin sees their group', () => {
-  assert.deepEqual(folders('sadmin@x.com'), ['ausie']);
+  assert.deepEqual(folders('sadmin@x.com'), ['personal']);
 });
 
 test('known user with no groups sees nothing', () => {
@@ -2508,11 +2508,11 @@ import { buildProfile, buildSummary, computeInstallServices } from '../src/profi
 const install = createInstall();
 install
   .addGroup({ id: 'ag-home', name: 'Home', folder: 'home', timezone: 'Asia/Jerusalem', mcpServers: { 'google-mcp': { command: 'node', env: { ALLOW: 'gcal_list,gmail_search', SECRET: 'SECRET_VALUE_123' } }, 'odd-server': {} } })
-  .addGroup({ id: 'ag-ausie', name: 'Ausie', folder: 'ausie', mcpServers: { budget: { env: { ALLOW: 'ynab_get' } } } });
+  .addGroup({ id: 'ag-personal', name: 'Personal', folder: 'personal', mcpServers: { budget: { env: { ALLOW: 'ynab_get' } } } });
 install.addSession({ id: 's1', agentGroupId: 'ag-home', lastActive: '2026-09-15T09:00:00.000Z' }).inbound({ timestamp: '2026-09-15T09:00:00.000Z' }).close();
 install.writeGroupFile('home', 'agent-card.json', JSON.stringify({ name: 'Home', description: 'Runs the house', 'x-profile': { emoji: '🏠', neverDoes: ['Take sides'] }, skills: [{ name: 'Calendar', examples: ['What is on tomorrow?'] }] }));
 install.writeGroupFile('home', 'instructions.prepend.md', '# Home persona');
-install.writeGroupFile('ausie', 'agent-card.json', '{broken');
+install.writeGroupFile('personal', 'agent-card.json', '{broken');
 install.close();
 
 const now = new Date('2026-09-15T12:00:00Z');
@@ -2575,8 +2575,8 @@ test('owner profile adds cost, instructions and unknown names', async () => {
 });
 
 test('a broken card still renders a profile with a fallback name', async () => {
-  const p = await buildProfile({ id: 'ag-ausie', name: 'Ausie', folder: 'ausie' }, { ...base, viewer: { isOwner: true }, installServices: new Set() });
-  assert.equal(p.identity.name, 'Ausie');
+  const p = await buildProfile({ id: 'ag-personal', name: 'Personal', folder: 'personal' }, { ...base, viewer: { isOwner: true }, installServices: new Set() });
+  assert.equal(p.identity.name, 'Personal');
   assert.equal(p.cardProblem, true);
   assert.equal(p.capabilities.ok, true);
 });
@@ -3156,8 +3156,8 @@ test('no token is 403 with security headers', async () => {
 test('spouse sees only Home', async () => {
   const html = await (await get('/', 'spouse@x.com')).text();
   assert.ok(html.includes('/agents/home'));
-  assert.ok(!html.includes('/agents/ausie'));
-  assert.equal((await get('/agents/ausie', 'spouse@x.com')).status, 404);
+  assert.ok(!html.includes('/agents/personal'));
+  assert.equal((await get('/agents/personal', 'spouse@x.com')).status, 404);
   assert.equal((await get('/agents/eval', 'spouse@x.com')).status, 404);
 });
 
@@ -3175,7 +3175,7 @@ test('icon is served for visible agents', async () => {
   assert.equal(res.status, 200);
   assert.equal(res.headers.get('content-type'), 'image/png');
   assert.equal(await res.text(), 'PNGDATA');
-  assert.equal((await get('/agents/ausie/icon', 'owner@x.com')).status, 404);
+  assert.equal((await get('/agents/personal/icon', 'owner@x.com')).status, 404);
 });
 
 test('known email without groups gets the empty state', async () => {
@@ -3432,7 +3432,7 @@ test('checkInstall reads groups from v2.db', () => {
   const nanoclaw = createNanoclawSource(install.dbPath);
   const r = checkInstall({ config: { groupsDir: install.groupsDir }, plugins, catalogue, nanoclaw });
   assert.ok(r.errors.some((e) => e.startsWith('home:') && e.includes('invalid JSON')));
-  assert.ok(r.warnings.includes('ausie: no agent-card.json'));
+  assert.ok(r.warnings.includes('personal: no agent-card.json'));
   nanoclaw.close();
   fs.rmSync(install.dir, { recursive: true, force: true });
 });
@@ -3697,11 +3697,11 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 ## After v1: install repo follow-up (not part of this plan)
 
-The first household deployment is a separate plan in the `ausie` repo (spec §11):
-- agent cards for `ausie` and `home`;
-- the Ausie plugin: `AUSIE_TOOL_ALLOW` → `resolveTools`, Ausie tool sentences, and cost/activity from the Supabase ledger through a new read-only role;
+The first household deployment is a separate plan in the install's own repo (spec §11):
+- agent cards for `personal` and `home`;
+- the install's plugin: an allow-list environment variable → `resolveTools`, its own tool sentences, and cost/activity from its existing ledger through a new read-only role;
 - the systemd unit;
 - the Zero Trust tunnel hostname and Access application (click-by-click instructions);
-- `nanoclaw-profiles check --templates agent/build --plugin profiles/ausie-plugin.mjs` in CI.
+- `nanoclaw-profiles check --templates agent/build --plugin profiles/install-plugin.mjs` in CI.
 
 Write that plan once this package is merged.

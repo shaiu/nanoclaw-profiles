@@ -42,7 +42,7 @@ test('checkInstall reads groups from v2.db', () => {
   const nanoclaw = createNanoclawSource(install.dbPath);
   const r = checkInstall({ config: { groupsDir: install.groupsDir }, plugins, catalogue, nanoclaw });
   assert.ok(r.errors.some((e) => e.startsWith('home:') && e.includes('invalid JSON')));
-  assert.ok(r.warnings.includes('ausie: no agent-card.json'));
+  assert.ok(r.warnings.includes('personal: no agent-card.json'));
   nanoclaw.close();
   fs.rmSync(install.dir, { recursive: true, force: true });
 });

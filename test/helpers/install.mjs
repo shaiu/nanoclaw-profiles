@@ -104,7 +104,7 @@ export function createInstall() {
 export function householdInstall() {
   const install = createInstall();
   install
-    .addGroup({ id: 'ag-personal', name: 'Ausie', folder: 'ausie' })
+    .addGroup({ id: 'ag-personal', name: 'Personal', folder: 'personal' })
     .addGroup({ id: 'ag-home', name: 'Home', folder: 'home' })
     .addGroup({ id: 'ag-eval', name: 'Eval', folder: 'eval' })
     .addUser('wa:owner')

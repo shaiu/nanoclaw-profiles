@@ -29,7 +29,7 @@ test('owner sees everything, including hidden groups', () => {
   const v = resolveViewer('OWNER@x.com', ctx);
   assert.equal(v.isOwner, true);
   assert.equal(v.email, 'owner@x.com');
-  assert.deepEqual(v.groups.map((g) => g.folder).sort(), ['ausie', 'eval', 'home']);
+  assert.deepEqual(v.groups.map((g) => g.folder).sort(), ['eval', 'home', 'personal']);
 });
 
 test('member sees only their groups', () => {
@@ -37,11 +37,11 @@ test('member sees only their groups', () => {
 });
 
 test('global admin sees everything except hidden groups', () => {
-  assert.deepEqual(folders('gadmin@x.com').sort(), ['ausie', 'home']);
+  assert.deepEqual(folders('gadmin@x.com').sort(), ['home', 'personal']);
 });
 
 test('scoped admin sees their group', () => {
-  assert.deepEqual(folders('sadmin@x.com'), ['ausie']);
+  assert.deepEqual(folders('sadmin@x.com'), ['personal']);
 });
 
 test('known user with no groups sees nothing', () => {

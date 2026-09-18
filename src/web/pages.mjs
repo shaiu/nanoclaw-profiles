@@ -89,7 +89,9 @@ function renderCost(c) {
   const max = Math.max(...c.months.map((m) => m.amount), 0.01);
   const current = c.months.at(-1);
   const bars = c.months.map((m) => `<div class="bar"><span style="height:${Math.round((m.amount / max) * 70)}px"></span>${esc(monthLabel(m.month))}</div>`).join('');
-  const note = c.estimate ? `This is an estimate${c.unpriced ? ' (some usage has no price set)' : ''}.` : '';
+  const note = c.estimate
+    ? `This is an estimate${c.unpriced ? ' (some usage has no price set)' : ''}.`
+    : c.unpriced ? 'Some usage has no price set, so the real total is higher.' : '';
   return `<p><strong>This month:</strong> ${esc(formatMoney(current.amount, c.currency))}</p><div class="bars">${bars}</div>${note ? `<p class="muted">${esc(note)}</p>` : ''}`;
 }
 
