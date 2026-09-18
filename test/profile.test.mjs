@@ -1,6 +1,8 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { createInstall } from './helpers/install.mjs';
 import { createNanoclawSource } from '../src/sources/nanoclaw.mjs';
 import { readAgentCard } from '../src/sources/card.mjs';
@@ -12,7 +14,8 @@ import { buildProfile, buildSummary, computeInstallServices } from '../src/profi
 const install = createInstall();
 install
   .addGroup({ id: 'ag-home', name: 'Home', folder: 'home', timezone: 'Asia/Jerusalem', mcpServers: { 'google-mcp': { command: 'node', env: { ALLOW: 'gcal_list,gmail_search', SECRET: 'SECRET_VALUE_123' } }, 'odd-server': {} } })
-  .addGroup({ id: 'ag-ausie', name: 'Ausie', folder: 'ausie', mcpServers: { budget: { env: { ALLOW: 'ynab_get' } } } });
+  .addGroup({ id: 'ag-ausie', name: 'Ausie', folder: 'ausie', mcpServers: { budget: { env: { ALLOW: 'ynab_get' } } } })
+  .addGroup({ id: 'ag-attacker', name: 'Attacker', folder: 'attacker' });
 install.addSession({ id: 's1', agentGroupId: 'ag-home', lastActive: '2026-09-15T09:00:00.000Z' }).inbound({ timestamp: '2026-09-15T09:00:00.000Z' }).close();
 install.writeGroupFile('home', 'agent-card.json', JSON.stringify({ name: 'Home', description: 'Runs the house', 'x-profile': { emoji: '🏠', neverDoes: ['Take sides'] }, skills: [{ name: 'Calendar', examples: ['What is on tomorrow?'] }] }));
 install.writeGroupFile('home', 'instructions.prepend.md', '# Home persona');
@@ -98,6 +101,34 @@ test('plugin cost replaces the estimate', async () => {
   const p = await buildProfile(home, { ...base, plugins: withCost, config: { ...config, currency: { code: 'ILS', symbol: '₪', rate: 4 } }, viewer: { isOwner: true }, installServices: new Set() });
   assert.equal(p.cost.data.estimate, false);
   assert.equal(p.cost.data.months.at(-1).amount, 8);
+});
+
+test('instructions.prepend.md symlinked outside the group is not read', async () => {
+  fs.mkdirSync(path.join(install.groupsDir, 'attacker'), { recursive: true });
+  const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ncp-outside-'));
+  try {
+    fs.writeFileSync(path.join(outsideDir, 'secret.md'), 'HOST SECRET');
+    fs.symlinkSync(path.join(outsideDir, 'secret.md'), path.join(install.groupsDir, 'attacker', 'instructions.prepend.md'));
+    const attacker = { id: 'ag-attacker', name: 'Attacker', folder: 'attacker' };
+    const p = await buildProfile(attacker, { ...base, viewer: { isOwner: true }, installServices: new Set() });
+    assert.equal(p.instructions.data, null);
+    assert.ok(!JSON.stringify(p).includes('HOST SECRET'));
+  } finally {
+    fs.rmSync(outsideDir, { recursive: true, force: true });
+  }
+});
+
+test('plugin cost ignores byMonth entries whose usd is not a finite number', async () => {
+  const withCost = [...plugins, { name: 'ledger', cost: async (a, { months }) => ({ byMonth: [{ month: months.at(-1), usd: NaN }, { month: months.at(-2), usd: 'oops' }] }) }];
+  const p = await buildProfile(home, { ...base, plugins: withCost, viewer: { isOwner: true }, installServices: new Set() });
+  assert.equal(p.cost.data.estimate, false);
+  assert.equal(p.cost.data.months.at(-1).amount, 0);
+  assert.equal(p.cost.data.months.at(-2).amount, 0);
+});
+
+test('install services exclude hiddenGroups folders', () => {
+  const hiddenConfig = { ...config, hiddenGroups: ['ausie'] };
+  assert.deepEqual([...computeInstallServices({ ...base, config: hiddenConfig })].sort(), ['Calendar', 'Email']);
 });
 
 test('summary', async () => {
