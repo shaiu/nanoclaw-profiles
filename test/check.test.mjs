@@ -56,3 +56,15 @@ test('runCheckCli exit codes', async () => {
   assert.equal(await runCheckCli({ templates: dir, plugin: [pluginFile] }), 0);
   assert.equal(await runCheckCli({}), 2);
 });
+
+test('parse errors do not expose file content', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ncp-leaky-'));
+  const leakyDir = path.join(dir, 'leaky');
+  fs.mkdirSync(leakyDir);
+  fs.writeFileSync(path.join(leakyDir, 'plugin.json'), '{}');
+  fs.writeFileSync(path.join(leakyDir, 'mcp.json'), 'SECRET_TOKEN_abc123{}');
+  const r = checkTemplates(dir, { plugins, catalogue });
+  assert.ok(r.errors.includes('leaky: mcp.json: invalid JSON'));
+  assert.ok(!r.errors.some((e) => e.includes('SECRET')));
+  fs.rmSync(dir, { recursive: true, force: true });
+});

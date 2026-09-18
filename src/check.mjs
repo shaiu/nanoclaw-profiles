@@ -26,7 +26,7 @@ export function checkTemplates(templatesDir, { plugins, catalogue }) {
         const problems = validateCard(JSON.parse(fs.readFileSync(cardFile, 'utf8')));
         if (problems.length) errors.push(`${entry.name}: agent-card.json: ${problems.join('; ')}`);
       } catch (err) {
-        errors.push(`${entry.name}: agent-card.json: invalid JSON (${err.message})`);
+        errors.push(`${entry.name}: agent-card.json: invalid JSON`);
       }
     }
     let mcpServers = {};
@@ -35,7 +35,7 @@ export function checkTemplates(templatesDir, { plugins, catalogue }) {
       try {
         mcpServers = JSON.parse(fs.readFileSync(mcpFile, 'utf8')).mcpServers ?? {};
       } catch (err) {
-        errors.push(`${entry.name}: mcp.json: invalid JSON (${err.message})`);
+        errors.push(`${entry.name}: mcp.json: invalid JSON`);
       }
     }
     errors.push(...toolErrors(entry.name, mcpServers, { plugins, catalogue }));
