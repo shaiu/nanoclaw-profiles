@@ -156,15 +156,25 @@ does not have.
      use exactly that list (per-tool granularity).
 2. Map each tool, or the whole server, through the **capability catalogue**
    (`catalogue/capabilities.json` shipped with the package, merged with plugin
-   `capabilities`). Each entry has: `match` (tool name, glob, or server name),
-   `service` (e.g. "Calendar"), and `sentence` (e.g. "Reads and changes events
-   on your calendar").
+   `capabilities`, with plugin entries taking precedence). Each entry has:
+   - `match`: a tool-name glob, for per-tool entries;
+   - or `server`: a server-name glob, for whole-server entries;
+   - `service`: e.g. "Calendar";
+   - `sentence`: e.g. "Reads and changes events on your calendar";
+   - optionally `cannot`: the sentence shown when this entry is *not*
+     allowed, e.g. "Cannot send or reply to email".
 3. **Can do** = sentences grouped by service.
-4. **Can't do** = catalogue entries in a service the agent partly has, whose
-   tools are not allowed. Example: Email read tools are allowed and send tools
-   are not, which gives "Cannot send or reply to email". Services the agent has
-   no access to at all are listed once, as "No access to: Budget, Smart home".
-   The card's `x-profile.neverDoes` lines are appended.
+4. **Can't do** has three parts:
+   - the `cannot` sentence of each catalogue entry that is in a service the
+     agent partly has but is not itself allowed. Example: Email read tools are
+     allowed and send tools are not, which gives "Cannot send or reply to
+     email".
+   - "No access to: Budget, Smart home". These are services that *another
+     agent in the same install* has and this one does not. This keeps the
+     list meaningful and short.
+   - the card's `x-profile.neverDoes` lines.
+   Tools or servers with no catalogue entry are counted as "N other tools".
+   Their raw names are shown to owners only; `check` flags them.
 5. Environment values in `mcp_servers` are **never** rendered. Plugins
    receive the server config to parse allow-lists; the core only reads server
    names and commands.
