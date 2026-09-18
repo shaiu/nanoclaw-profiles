@@ -1,0 +1,58 @@
+import { test, after } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { householdInstall } from './helpers/install.mjs';
+import { createNanoclawSource } from '../src/sources/nanoclaw.mjs';
+import { resolveViewer } from '../src/identity.mjs';
+
+const install = householdInstall();
+install.addUser('wa:gadmin').addRole('wa:gadmin', 'admin');
+install.addUser('wa:sadmin').addRole('wa:sadmin', 'admin', 'ag-personal');
+install.close();
+const nanoclaw = createNanoclawSource(install.dbPath);
+after(() => {
+  nanoclaw.close();
+  fs.rmSync(install.dir, { recursive: true, force: true });
+});
+
+const users = {
+  'owner@x.com': 'wa:owner',
+  'spouse@x.com': 'wa:spouse',
+  'stranger@x.com': 'wa:stranger',
+  'gadmin@x.com': 'wa:gadmin',
+  'sadmin@x.com': 'wa:sadmin',
+};
+const ctx = { users, hiddenGroups: ['eval'], nanoclaw };
+const folders = (email) => resolveViewer(email, ctx)?.groups.map((g) => g.folder);
+
+test('owner sees everything, including hidden groups', () => {
+  const v = resolveViewer('OWNER@x.com', ctx);
+  assert.equal(v.isOwner, true);
+  assert.equal(v.email, 'owner@x.com');
+  assert.deepEqual(v.groups.map((g) => g.folder).sort(), ['ausie', 'eval', 'home']);
+});
+
+test('member sees only their groups', () => {
+  assert.deepEqual(folders('spouse@x.com'), ['home']);
+});
+
+test('global admin sees everything except hidden groups', () => {
+  assert.deepEqual(folders('gadmin@x.com').sort(), ['ausie', 'home']);
+});
+
+test('scoped admin sees their group', () => {
+  assert.deepEqual(folders('sadmin@x.com'), ['ausie']);
+});
+
+test('known user with no groups sees nothing', () => {
+  assert.deepEqual(folders('stranger@x.com'), []);
+});
+
+test('unknown email is null', () => {
+  assert.equal(resolveViewer('nobody@x.com', ctx), null);
+});
+
+test('container config parsing', () => {
+  assert.deepEqual(nanoclaw.getContainerConfig('ag-home'), { assistantName: null, timezone: null, mcpServers: {} });
+  assert.equal(nanoclaw.getContainerConfig('missing'), null);
+});

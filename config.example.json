@@ -1,0 +1,23 @@
+{
+  "port": 3200,
+  "nanoclawDir": "/home/nanoclaw/nanoclaw",
+  "nclTimeoutMs": 15000,
+  "timezone": "UTC",
+  "access": {
+    "teamDomain": "your-team.cloudflareaccess.com",
+    "aud": "paste-the-application-audience-tag-here"
+  },
+  "users": {
+    "owner@example.com": "whatsapp:15550000001",
+    "partner@example.com": "whatsapp:15550000002"
+  },
+  "hiddenGroups": [],
+  "showCostToMembers": false,
+  "currency": { "code": "USD", "symbol": "$", "rate": 1 },
+  "prices": {
+    "claude-haiku-4-5": { "input": 1, "output": 5 },
+    "claude-sonnet-5": { "input": 3, "output": 15 },
+    "claude-opus-5": { "input": 5, "output": 25 }
+  },
+  "plugins": []
+}

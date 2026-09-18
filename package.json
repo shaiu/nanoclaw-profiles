@@ -1,0 +1,13 @@
+{
+  "name": "nanoclaw-profiles",
+  "version": "0.1.0",
+  "description": "Friendly, read-only agent profile pages for NanoClaw installs",
+  "license": "MIT",
+  "type": "module",
+  "bin": { "nanoclaw-profiles": "src/cli.mjs" },
+  "engines": { "node": ">=22.13" },
+  "files": ["src", "catalogue", "config.example.json", "deploy", "README.md", "LICENSE"],
+  "scripts": {
+    "test": "node --disable-warning=ExperimentalWarning --test \"test/**/*.test.mjs\""
+  }
+}

@@ -1,0 +1,13 @@
+[
+  { "server": "notion*", "service": "Notion", "sentence": "Reads and edits pages and databases in your Notion workspace" },
+  { "server": "*github*", "service": "GitHub", "sentence": "Works with your GitHub repositories, issues and pull requests" },
+  { "server": "*gmail*", "service": "Email", "sentence": "Reads and manages your Gmail" },
+  { "server": "*calendar*", "service": "Calendar", "sentence": "Reads and changes events on your calendar" },
+  { "server": "*drive*", "service": "Files", "sentence": "Finds and reads files in your Google Drive" },
+  { "server": "*slack*", "service": "Slack", "sentence": "Reads and posts messages in Slack" },
+  { "server": "*home-assistant*", "service": "Smart home", "sentence": "Checks and controls devices in your home" },
+  { "server": "*filesystem*", "service": "Files", "sentence": "Reads and writes files in its workspace" },
+  { "server": "*brave*", "service": "Web", "sentence": "Searches the web" },
+  { "server": "*fetch*", "service": "Web", "sentence": "Opens and reads web pages" },
+  { "server": "*playwright*", "service": "Web", "sentence": "Uses a web browser to visit and interact with sites" }
+]
