@@ -2,6 +2,7 @@ import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { createInstall } from './helpers/install.mjs';
 import { findCardFile, validateCard, readAgentCard, resolveIconPath, CardError } from '../src/sources/card.mjs';
 
@@ -21,9 +22,27 @@ test('direct card wins; otherwise the first plugin alphabetically', () => {
 
 test('icon path resolves inside the card folder only', () => {
   const info = readAgentCard(install.groupsDir, 'direct');
-  assert.equal(resolveIconPath(info), path.join(install.groupsDir, 'direct', 'avatar.png'));
+  const expectedPath = fs.realpathSync(path.join(install.groupsDir, 'direct', 'avatar.png'));
+  assert.equal(resolveIconPath(info), expectedPath);
   assert.equal(resolveIconPath({ ...info, card: { iconUrl: 'missing.png' } }), null);
   assert.equal(resolveIconPath({ ...info, card: { iconUrl: '../templated/x.png' } }), null);
+});
+
+test('symlink escape attempts are blocked', () => {
+  const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ncp-outside-'));
+  try {
+    fs.writeFileSync(path.join(outsideDir, 'secret.png'), 'SECRET');
+    const symlinkPath = path.join(install.groupsDir, 'direct', 'assets');
+    fs.symlinkSync(outsideDir, symlinkPath);
+    const info = readAgentCard(install.groupsDir, 'direct');
+    assert.equal(resolveIconPath({ ...info, card: { iconUrl: 'assets/secret.png' } }), null);
+  } finally {
+    try {
+      fs.rmSync(outsideDir, { recursive: true, force: true });
+    } catch {
+      // ignore cleanup errors
+    }
+  }
 });
 
 test('validateCard reports every problem', () => {

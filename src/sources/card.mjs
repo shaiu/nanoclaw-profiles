@@ -84,7 +84,10 @@ export function resolveIconPath(cardInfo) {
   if (!abs.startsWith(cardInfo.baseDir + path.sep)) return null;
   if (!ICON_EXT.has(path.extname(abs).toLowerCase())) return null;
   try {
-    return fs.lstatSync(abs).isFile() ? abs : null;
+    const real = fs.realpathSync(abs);
+    const realBase = fs.realpathSync(cardInfo.baseDir);
+    if (!real.startsWith(realBase + path.sep)) return null;
+    return fs.statSync(real).isFile() ? real : null;
   } catch {
     return null;
   }
