@@ -1,20 +1,34 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { realInside } from '../fs-safe.mjs';
 
 export class CardError extends Error {}
 export const ICON_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp', '.svg']);
 
+function realCardFile(groupDir, rel) {
+  const real = realInside(groupDir, rel);
+  if (!real) return null;
+  try {
+    return fs.statSync(real).isFile() ? real : null;
+  } catch {
+    return null;
+  }
+}
+
+// Template card wins: a NanoClaw template can ship a card at the root of its
+// own plugin directory, so every group stamped from that template gets a
+// card for free. A hand-authored card directly in the group folder is the
+// fallback for a bare group with no template card.
 export function findCardFile(groupsDir, folder) {
   const groupDir = path.join(groupsDir, folder);
-  const direct = path.join(groupDir, 'agent-card.json');
-  if (fs.existsSync(direct)) return direct;
   const pluginsDir = path.join(groupDir, 'plugins');
-  if (!fs.existsSync(pluginsDir)) return null;
-  for (const name of fs.readdirSync(pluginsDir).sort()) {
-    const file = path.join(pluginsDir, name, 'agent-card.json');
-    if (fs.existsSync(file)) return file;
+  if (fs.existsSync(pluginsDir)) {
+    for (const name of fs.readdirSync(pluginsDir).sort()) {
+      const file = realCardFile(groupDir, path.join('plugins', name, 'agent-card.json'));
+      if (file) return file;
+    }
   }
-  return null;
+  return realCardFile(groupDir, 'agent-card.json');
 }
 
 const isStringArray = (v) => Array.isArray(v) && v.every((x) => typeof x === 'string');
@@ -69,8 +83,8 @@ export function readAgentCard(groupsDir, folder) {
   let card;
   try {
     card = JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch (err) {
-    throw new CardError(`${file}: invalid JSON (${err.message})`);
+  } catch {
+    throw new CardError(`${file}: invalid JSON`);
   }
   const errors = validateCard(card);
   if (errors.length) throw new CardError(`${file}: ${errors.join('; ')}`);
@@ -82,11 +96,14 @@ export function resolveIconPath(cardInfo) {
   if (!iconUrl) return null;
   const abs = path.resolve(cardInfo.baseDir, iconUrl);
   if (!abs.startsWith(cardInfo.baseDir + path.sep)) return null;
+  // The extension check runs against the requested (possibly symlink) name,
+  // not the realpath target below — the server route re-checks the
+  // extension of the resolved real path before serving, so a symlink named
+  // *.png that points at a non-image file is still refused there.
   if (!ICON_EXT.has(path.extname(abs).toLowerCase())) return null;
+  const real = realInside(cardInfo.baseDir, iconUrl);
+  if (!real) return null;
   try {
-    const real = fs.realpathSync(abs);
-    const realBase = fs.realpathSync(cardInfo.baseDir);
-    if (!real.startsWith(realBase + path.sep)) return null;
     return fs.statSync(real).isFile() ? real : null;
   } catch {
     return null;

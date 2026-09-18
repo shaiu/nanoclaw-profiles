@@ -1,5 +1,8 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { createInstall } from './helpers/install.mjs';
 import { extractCoreMemory, parseFrontmatter, readMemory } from '../src/sources/memory.mjs';
 
@@ -36,4 +39,27 @@ test('readMemory lists titles and descriptions, never bodies', () => {
 test('missing memory folder is empty, not an error', () => {
   install.addGroup({ id: 'x', name: 'X', folder: 'empty' });
   assert.deepEqual(readMemory(install.groupsDir, 'empty'), { core: null, files: [] });
+});
+
+test('a memory dir symlinked to another group is treated as empty', () => {
+  install.addGroup({ id: 'atk', name: 'Attacker', folder: 'attacker' });
+  const target = path.join(install.groupsDir, 'home', 'memory');
+  const symlinkPath = path.join(install.groupsDir, 'attacker', 'memory');
+  fs.symlinkSync(target, symlinkPath);
+  assert.deepEqual(readMemory(install.groupsDir, 'attacker'), { core: null, files: [] });
+});
+
+test('index.md symlinked to a host file outside the group is not read', () => {
+  install.addGroup({ id: 'atk2', name: 'Attacker2', folder: 'attacker2' });
+  const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ncp-outside-'));
+  try {
+    fs.writeFileSync(path.join(outsideDir, '.env'), '## Core Memory\n\nSECRET_API_KEY=hunter2');
+    fs.mkdirSync(path.join(install.groupsDir, 'attacker2', 'memory'));
+    fs.symlinkSync(path.join(outsideDir, '.env'), path.join(install.groupsDir, 'attacker2', 'memory', 'index.md'));
+    const m = readMemory(install.groupsDir, 'attacker2');
+    assert.equal(m.core, null);
+    assert.ok(!JSON.stringify(m).includes('hunter2'));
+  } finally {
+    fs.rmSync(outsideDir, { recursive: true, force: true });
+  }
 });

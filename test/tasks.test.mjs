@@ -1,5 +1,8 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { createInstall } from './helpers/install.mjs';
 import { createTaskSource, lastLogLine } from '../src/sources/tasks.mjs';
 
@@ -48,4 +51,16 @@ test('lastLogLine stays inside the group folder and truncates', () => {
   assert.equal(lastLogLine(install.groupsDir, 'a', 'tasks/missing.md'), null);
   install.writeGroupFile('a', 'tasks/long.md', `- ${'x'.repeat(200)}`);
   assert.equal(lastLogLine(install.groupsDir, 'a', 'tasks/long.md').length, 138);
+});
+
+test('lastLogLine refuses a symlink that escapes the group folder', () => {
+  const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ncp-outside-'));
+  try {
+    fs.writeFileSync(path.join(outsideDir, '.env'), 'SECRET_API_KEY=hunter2');
+    const symlinkPath = path.join(install.groupsDir, 'a', 'tasks', 'brief-abcd.md');
+    fs.symlinkSync(path.join(outsideDir, '.env'), symlinkPath);
+    assert.equal(lastLogLine(install.groupsDir, 'a', 'tasks/brief-abcd.md'), null);
+  } finally {
+    fs.rmSync(outsideDir, { recursive: true, force: true });
+  }
 });

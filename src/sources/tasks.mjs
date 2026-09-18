@@ -1,18 +1,12 @@
 import { execFile } from 'node:child_process';
-import fs from 'node:fs';
 import path from 'node:path';
+import { readFileInside } from '../fs-safe.mjs';
 
 export function lastLogLine(groupsDir, folder, rel) {
   if (typeof rel !== 'string' || !rel) return null;
   const base = path.join(groupsDir, folder);
-  const file = path.resolve(base, rel);
-  if (!file.startsWith(base + path.sep)) return null;
-  let text;
-  try {
-    text = fs.readFileSync(file, 'utf8');
-  } catch {
-    return null;
-  }
+  const text = readFileInside(base, rel);
+  if (text === null) return null;
   const line = text.split('\n').map((l) => l.trim()).filter(Boolean).at(-1);
   if (!line) return null;
   const clean = line.replace(/^[-*]\s+/, '');
