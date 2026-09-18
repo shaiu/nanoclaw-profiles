@@ -139,7 +139,7 @@ export async function buildProfile(agent, ctx) {
               }),
               currency: config.currency,
               estimate: false,
-              unpriced: false,
+              unpriced: fromPlugin.byMonth.some((m) => Number(m?.unpricedCalls) > 0),
             };
           }
           return sources.usage.monthlyCost(agent.id, { months: 6, timezone, now, prices: config.prices, currency: config.currency });

@@ -184,7 +184,9 @@ export default {
 ```
 
 `agent` passed to `cost` and `activity` is `{ id, folder, name }`. `cost`
-returns `{ byMonth: [{ month: '2026-09', usd: 12.3 }, …] }`; `activity`
+returns `{ byMonth: [{ month: '2026-09', usd: 12.3, unpricedCalls: 0 }, …] }`,
+where `unpricedCalls` is optional and, when greater than zero for any month,
+makes the page say the total is incomplete. `activity`
 returns `{ byDay: [{ date: '2026-09-12', services: { Calendar: 3 } }, …] }`.
 Plugins run in-process and are trusted code chosen by the install owner —
 they are not sandboxed.

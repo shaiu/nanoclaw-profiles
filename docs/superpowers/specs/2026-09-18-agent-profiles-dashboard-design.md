@@ -265,7 +265,7 @@ export default {
   capabilities: [ { match: 'gcal_*', service: 'Calendar', sentence: '…' } ],
   resolveTools(serverName, serverConfig) { /* string[] | undefined */ },
   // months: ['2026-04', …, '2026-09'] in the agent's timezone. Amounts in USD; core converts.
-  async cost(agent, { months, timezone }) { /* { byMonth: [{ month, usd }] } | undefined */ },
+  async cost(agent, { months, timezone }) { /* { byMonth: [{ month, usd, unpricedCalls? }] } | undefined */ },
   // days: ['2026-09-12', …] in the agent's timezone.
   async activity(agent, { days, timezone }) { /* { byDay: [{ date, services: { Calendar: 3 } }] } | undefined */ },
 };

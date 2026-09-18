@@ -126,6 +126,20 @@ test('plugin cost ignores byMonth entries whose usd is not a finite number', asy
   assert.equal(p.cost.data.months.at(-2).amount, 0);
 });
 
+test('plugin cost reports unpriced calls', async () => {
+  const withCost = [...plugins, { name: 'ledger', cost: async (a, { months }) => ({ byMonth: [{ month: months.at(-1), usd: 1.5, unpricedCalls: 2 }] }) }];
+  const p = await buildProfile(home, { ...base, plugins: withCost, viewer: { isOwner: true }, installServices: new Set() });
+  assert.equal(p.cost.data.estimate, false);
+  assert.equal(p.cost.data.unpriced, true);
+});
+
+test('plugin cost with unpricedCalls 0 or absent is not unpriced', async () => {
+  const withCost = [...plugins, { name: 'ledger', cost: async (a, { months }) => ({ byMonth: [{ month: months.at(-1), usd: 1.5, unpricedCalls: 0 }, { month: months.at(-2), usd: 1 }] }) }];
+  const p = await buildProfile(home, { ...base, plugins: withCost, viewer: { isOwner: true }, installServices: new Set() });
+  assert.equal(p.cost.data.estimate, false);
+  assert.equal(p.cost.data.unpriced, false);
+});
+
 test('install services exclude hiddenGroups folders', () => {
   const hiddenConfig = { ...config, hiddenGroups: ['ausie'] };
   assert.deepEqual([...computeInstallServices({ ...base, config: hiddenConfig })].sort(), ['Calendar', 'Email']);

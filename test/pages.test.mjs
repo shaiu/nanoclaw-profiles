@@ -43,6 +43,14 @@ test('owner extras', () => {
   }
 });
 
+test('unpriced cost note replaces the total when not an estimate', () => {
+  const html = renderProfile({
+    ...profile,
+    cost: ok({ months: [{ month: '2026-08', amount: 10 }, { month: '2026-09', amount: 12.4 }], currency: { symbol: '₪' }, estimate: false, unpriced: true }),
+  }, { isOwner: true });
+  assert.ok(html.includes('Some usage has no price set, so the real total is higher.'));
+});
+
 test('home lists agents with links', () => {
   const html = renderHome({ viewer: { email: 'a@b.c' }, agents: [{ folder: 'home', name: 'Home', emoji: '🏠', description: 'Runs the house', hasIcon: true, lastActive: 'today at 09:00' }] });
   assert.ok(html.includes('href="/agents/home"'));
