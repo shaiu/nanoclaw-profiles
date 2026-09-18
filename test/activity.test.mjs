@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createInstall } from './helpers/install.mjs';
@@ -39,4 +40,25 @@ test('dailyCounts buckets chat, replies and routine runs; skips stale sessions',
     { date: '2026-09-14', conversations: 1, messagesIn: 1, messagesOut: 0, routineRuns: 1, routineFailures: 1 },
     { date: '2026-09-15', conversations: 1, messagesIn: 2, messagesOut: 1, routineRuns: 1, routineFailures: 0 },
   ]);
+});
+
+test('skips sessions with corrupt databases and logs them', () => {
+  const corruptDir = `${install.sessionsDir}/ag-1/s-corrupt`;
+  fs.mkdirSync(corruptDir, { recursive: true });
+  fs.writeFileSync(`${corruptDir}/inbound.db`, 'not a database');
+
+  const logs = [];
+  const src = createActivitySource({ sessionsDir: install.sessionsDir, log: (msg) => logs.push(msg) });
+  const sessions = [
+    { id: 's-chat', lastActive: '2026-09-15T10:00:00.000Z' },
+    { id: 's-corrupt', lastActive: '2026-09-15T10:00:00.000Z' },
+  ];
+  const days = src.dailyCounts('ag-1', sessions, { days: 2, timezone: 'UTC', now });
+
+  assert.deepEqual(days, [
+    { date: '2026-09-14', conversations: 1, messagesIn: 1, messagesOut: 0, routineRuns: 0, routineFailures: 0 },
+    { date: '2026-09-15', conversations: 1, messagesIn: 2, messagesOut: 1, routineRuns: 0, routineFailures: 0 },
+  ]);
+  assert.equal(logs.length, 1);
+  assert.ok(logs[0].includes('s-corrupt'));
 });

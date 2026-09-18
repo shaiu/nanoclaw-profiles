@@ -21,7 +21,7 @@ function readRows(file, sql, params) {
   }
 }
 
-export function createActivitySource({ sessionsDir }) {
+export function createActivitySource({ sessionsDir, log = () => {} }) {
   return {
     dailyCounts(agentGroupId, sessions, { days = 7, timezone, now = new Date() }) {
       const keys = lastNDays(days, timezone, now);
@@ -32,37 +32,43 @@ export function createActivitySource({ sessionsDir }) {
       for (const session of sessions) {
         if (!session.lastActive || session.lastActive < since) continue;
         const dir = path.join(sessionsDir, agentGroupId, session.id);
-        const active = new Set();
-        const inbound = readRows(
-          path.join(dir, 'inbound.db'),
-          'SELECT kind, timestamp, status, process_after FROM messages_in WHERE timestamp >= ? OR process_after >= ?',
-          [since, since],
-        );
-        for (const r of inbound) {
-          if (CHAT_KINDS.has(r.kind)) {
+
+        try {
+          const active = new Set();
+          const inbound = readRows(
+            path.join(dir, 'inbound.db'),
+            'SELECT kind, timestamp, status, process_after FROM messages_in WHERE timestamp >= ? OR process_after >= ?',
+            [since, since],
+          );
+          const outbound = readRows(path.join(dir, 'outbound.db'), 'SELECT kind, timestamp FROM messages_out WHERE timestamp >= ?', [since]);
+
+          for (const r of inbound) {
+            if (CHAT_KINDS.has(r.kind)) {
+              const d = bucket(r.timestamp);
+              if (d) {
+                d.messagesIn += 1;
+                active.add(d);
+              }
+            } else if (r.kind === 'task' && (r.status === 'completed' || r.status === 'failed')) {
+              const d = bucket(r.process_after ?? r.timestamp);
+              if (d) {
+                d.routineRuns += 1;
+                if (r.status === 'failed') d.routineFailures += 1;
+              }
+            }
+          }
+          for (const r of outbound) {
+            if (!CHAT_KINDS.has(r.kind)) continue;
             const d = bucket(r.timestamp);
             if (d) {
-              d.messagesIn += 1;
+              d.messagesOut += 1;
               active.add(d);
             }
-          } else if (r.kind === 'task' && (r.status === 'completed' || r.status === 'failed')) {
-            const d = bucket(r.process_after ?? r.timestamp);
-            if (d) {
-              d.routineRuns += 1;
-              if (r.status === 'failed') d.routineFailures += 1;
-            }
           }
+          for (const d of active) d.conversations += 1;
+        } catch (err) {
+          log(`activity: skipped session ${session.id}: ${err.message}`);
         }
-        const outbound = readRows(path.join(dir, 'outbound.db'), 'SELECT kind, timestamp FROM messages_out WHERE timestamp >= ?', [since]);
-        for (const r of outbound) {
-          if (!CHAT_KINDS.has(r.kind)) continue;
-          const d = bucket(r.timestamp);
-          if (d) {
-            d.messagesOut += 1;
-            active.add(d);
-          }
-        }
-        for (const d of active) d.conversations += 1;
       }
       return keys.map((k) => byDay.get(k));
     },
