@@ -46,7 +46,10 @@ export function createApp({ config, sources, plugins, catalogue, verifier, log =
     }
 
     const viewer = resolveViewer(email, { users: config.users, hiddenGroups: config.hiddenGroups, nanoclaw: sources.nanoclaw });
-    if (!viewer || viewer.groups.length === 0) {
+    // Gate on `reachable`, not the list-page `groups`: an owner whose only groups are hidden
+    // still has access (they can open those groups by direct URL) and must not be told they
+    // have none. Their list page below will just render an empty grid.
+    if (!viewer || viewer.reachable.length === 0) {
       return send(req, res, 200, renderMessage({ title: 'No agents yet', message: "You don't have any agents here yet. Ask the person who set this up to add you." }));
     }
 
@@ -56,7 +59,7 @@ export function createApp({ config, sources, plugins, catalogue, verifier, log =
     }
 
     const m = /^\/agents\/([A-Za-z0-9._-]+)(\/icon)?\/?$/.exec(url.pathname);
-    const agent = m && viewer.groups.find((g) => g.folder === m[1]);
+    const agent = m && viewer.reachable.find((g) => g.folder === m[1]);
     if (!agent) return notFound(req, res);
 
     if (m[2]) {
